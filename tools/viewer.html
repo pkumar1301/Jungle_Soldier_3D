@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#556}canvas{width:100%;height:100%;display:block}</style></head>
+<body><canvas id="c"></canvas><script type="module">
+import * as pc from '../js/playcanvas.min.mjs';
+const q=new URLSearchParams(location.search);
+const app=new pc.Application(document.getElementById('c'),{graphicsDeviceOptions:{preserveDrawingBuffer:true,antialias:true}});
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);app.setCanvasResolution(pc.RESOLUTION_AUTO);
+const b64=await (await fetch('../assets/qwantani_dusk_1k.rgbe.b64.txt')).text();const bin=atob(b64.trim()),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+const hdr=new pc.Texture(app.graphicsDevice,{width:1024,height:512,format:pc.PIXELFORMAT_RGBA8,type:pc.TEXTURETYPE_RGBE,mipmaps:false,projection:pc.TEXTUREPROJECTION_EQUIRECT,levels:[u]});
+app.scene.envAtlas=pc.EnvLighting.generateAtlas(pc.EnvLighting.generateLightingSource(hdr));app.scene.skyboxIntensity=1;
+const cam=new pc.Entity();cam.addComponent('camera',{clearColor:new pc.Color(.33,.36,.34),toneMapping:pc.TONEMAP_ACES2,fov:35});app.root.addChild(cam);
+const sun=new pc.Entity();sun.addComponent('light',{type:'directional',intensity:2.2,color:new pc.Color(1,.95,.85)});sun.setEulerAngles(45,30,0);app.root.addChild(sun);
+app.start();
+app.assets.loadFromUrl(q.get('m'),'container',(err,a)=>{
+  if(err){document.title='ERR '+err;return;}
+  const e=a.resource.instantiateRenderEntity();app.root.addChild(e);
+  const box=new pc.BoundingBox();let first=true;e.findComponents('render').forEach(r=>r.meshInstances.forEach(mi=>{if(first){box.copy(mi.aabb);first=false}else box.add(mi.aabb)}));
+  window.info={center:box.center.toString(),half:box.halfExtents.toString()};
+  const r=box.halfExtents.length()*3.2;
+  window.view=(yaw,pitch=12)=>{const y=yaw*Math.PI/180,p=pitch*Math.PI/180;cam.setPosition(box.center.x+Math.sin(y)*Math.cos(p)*r,box.center.y+Math.sin(p)*r,box.center.z+Math.cos(y)*Math.cos(p)*r);cam.lookAt(box.center);};
+  view(0);window.ready=true;
+});
+</script></body></html>

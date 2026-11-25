@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#333}canvas{width:100%;height:100%;display:block}</style></head>
+<body><canvas id="c"></canvas><script type="module">
+import * as pc from '../js/playcanvas.min.mjs';
+const app=new pc.Application(document.getElementById('c'),{graphicsDeviceOptions:{preserveDrawingBuffer:true,antialias:true}});
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);app.setCanvasResolution(pc.RESOLUTION_AUTO);
+const b64=await (await fetch('../assets/qwantani_dusk_1k.rgbe.b64.txt')).text();const bin=atob(b64.trim()),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+const hdr=new pc.Texture(app.graphicsDevice,{width:1024,height:512,format:pc.PIXELFORMAT_RGBA8,type:pc.TEXTURETYPE_RGBE,mipmaps:false,projection:pc.TEXTUREPROJECTION_EQUIRECT,levels:[u]});
+app.scene.envAtlas=pc.EnvLighting.generateAtlas(pc.EnvLighting.generateLightingSource(hdr));app.scene.skyboxIntensity=1.5;app.scene.exposure=1.4;
+const cam=new pc.Entity();cam.addComponent('camera',{clearColor:new pc.Color(.22,.27,.22),toneMapping:pc.TONEMAP_ACES2,fov:32,nearClip:.01,farClip:1000});app.root.addChild(cam);
+const sun=new pc.Entity();sun.addComponent('light',{type:'directional',intensity:3,color:new pc.Color(1,.95,.85)});sun.setEulerAngles(50,40,0);app.root.addChild(sun);
+app.start();
+let cur=null;
+window.show=async(url,yaw)=>{
+  if(cur){cur.destroy();cur=null;}
+  const r=await new Promise((res,rej)=>app.assets.loadFromUrl(url,'container',(e,a)=>e?rej(e):res(a.resource)));
+  const e=r.instantiateRenderEntity();app.root.addChild(e);cur=e;
+  if(r.animations.length){e.addComponent('anim',{activate:true});const tr=r.animations.map(a=>a.resource);const pick=tr.find(t=>/walk|run|idle|idol|fly/i.test(t.name))||tr[0];e.anim.assignAnimation('a',pick);}
+  await new Promise(r=>setTimeout(r,500));
+  const b=new pc.BoundingBox();let f=true;e.findComponents('render').forEach(rc=>rc.meshInstances.forEach(mi=>{if(f){b.copy(mi.aabb);f=false}else b.add(mi.aabb)}));
+  window.frameIt=(yaw)=>{const R=b.halfExtents.length()*3.1,y=yaw*Math.PI/180;cam.setPosition(b.center.x+Math.sin(y)*R,b.center.y+R*.32,b.center.z+Math.cos(y)*R);cam.lookAt(b.center);};
+  frameIt(yaw);
+  return {size:[b.halfExtents.x*2,b.halfExtents.y*2,b.halfExtents.z*2].map(v=>+v.toFixed(2)),anims:r.animations.map(a=>a.resource.name).slice(0,30)};
+};
+window.ready=true;
+</script></body></html>

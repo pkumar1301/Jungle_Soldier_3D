@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#333}canvas{width:100%;height:100%;display:block}</style></head>
+<body><canvas id="c"></canvas><script type="module">
+import * as pc from '../js/playcanvas.min.mjs';
+import { applyBiomeSkin } from '../js/skins.js';
+const q=new URLSearchParams(location.search);
+const url=q.get('m'), animRe=new RegExp(q.get('anim')||'run|walk|fly|idle','i'), skins=(q.get('skins')||'forest,desert,tundra,volcano,hive').split(','), yaw=+(q.get('yaw')||40);
+const app=new pc.Application(document.getElementById('c'),{graphicsDeviceOptions:{preserveDrawingBuffer:true,antialias:true}});
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);app.setCanvasResolution(pc.RESOLUTION_AUTO);
+const b64=await (await fetch('../assets/qwantani_dusk_1k.rgbe.b64.txt')).text();const bin=atob(b64.trim()),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+const hdr=new pc.Texture(app.graphicsDevice,{width:1024,height:512,format:pc.PIXELFORMAT_RGBA8,type:pc.TEXTURETYPE_RGBE,mipmaps:false,projection:pc.TEXTUREPROJECTION_EQUIRECT,levels:[u]});
+app.scene.envAtlas=pc.EnvLighting.generateAtlas(pc.EnvLighting.generateLightingSource(hdr));app.scene.skyboxIntensity=1.4;app.scene.exposure=1.35;
+const cam=new pc.Entity();cam.addComponent('camera',{clearColor:new pc.Color(.16,.2,.16),toneMapping:pc.TONEMAP_ACES2,fov:24,nearClip:.01,farClip:2000});app.root.addChild(cam);
+const sun=new pc.Entity();sun.addComponent('light',{type:'directional',intensity:3,color:new pc.Color(1,.95,.85)});sun.setEulerAngles(50,40,0);app.root.addChild(sun);
+app.scene.layers.getLayerById(pc.LAYERID_SKYBOX).enabled=false;
+app.start();
+const r=await new Promise((res,rej)=>app.assets.loadFromUrl(url,'container',(e,a)=>e?rej(e):res(a.resource)));
+const cache=new Map();const ents=[];
+for(const s of skins){
+  const e=r.instantiateRenderEntity();app.root.addChild(e);
+  if(r.animations.length){e.addComponent('anim',{activate:true});const tr=r.animations.map(a=>a.resource);const pick=tr.find(t=>animRe.test(t.name))||tr[0];e.anim.assignAnimation('a',pick);}
+  applyBiomeSkin(app,e,s,cache);ents.push(e);
+}
+await new Promise(r=>setTimeout(r,600));
+const b=new pc.BoundingBox();let f=true;ents[0].findComponents('render').forEach(rc=>rc.meshInstances.forEach(mi=>{if(f){b.copy(mi.aabb);f=false}else b.add(mi.aabb)}));
+const sp=Math.max(b.halfExtents.x,b.halfExtents.z)*2.3;
+ents.forEach((e,k)=>{e.setPosition((k-(ents.length-1)/2)*sp,0,0);e.setEulerAngles(0,yaw,0);});
+const W=sp*ents.length;const D=+(q.get('dist')||.8);cam.setPosition(b.center.x,b.center.y+W*.12,b.center.z+W*D);cam.lookAt(b.center.x,b.center.y,b.center.z);
+window.ready=true;
+</script></body></html>
